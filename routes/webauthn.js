@@ -113,7 +113,15 @@ router.post("/add", async (ctx) => {
 
 	// Exclude existing credentials
 	challengeMakeCred.excludeCredentials = database.getData("/users/" + ctx.session.username + "/authenticators").map((e) => {
-		return { id: base64.fromArrayBuffer(e.credId, true), type: e.type };
+		let jsonWritable = e.credId;
+		let jsonUnWritable = new ArrayBuffer(32);
+		let longInt8View = new Uint8Array(jsonUnWritable);
+		for (let i=0; i< longInt8View.length; i++) {
+			longInt8View[i] = jsonWritable[i];
+		}
+		//return { id: base64url.encode(jsonUnWritable, true), type: e.type };
+		return { id: base64.fromArrayBuffer(jsonUnWritable, true), type: e.type };
+		//return { id: base64.fromArrayBuffer(e.credId, true), type: e.type };
 	});
 
 	// Respond with credentials
@@ -151,9 +159,19 @@ router.post("/login", async (ctx) => {
 	let allowCredentials = [];
 	//for(let authr of database.users[ctx.session.username].authenticators) {
 	for(let authr of database.getData("/users/" + ctx.session.username + "/authenticators")) {
+		var jsonWritable = authr.credId;
+		//console.log("authr");
+		//console.log(authr);
+		var jsonUnWritable = new ArrayBuffer(32);
+		var longInt8View = new Uint8Array(jsonUnWritable);
+		for (var i=0; i< longInt8View.length; i++) {
+			longInt8View[i] = jsonWritable[i];
+		}
+
 		allowCredentials.push({
 			type: authr.type,
-			id: base64.fromArrayBuffer(authr.credId, true),
+			id: base64.fromArrayBuffer(jsonUnWritable, true),
+			//id: base64.fromArrayBuffer(authr.credId, true),
 			transports: authr.transports
 		});
 	}
@@ -181,8 +199,11 @@ router.post("/response", async (ctx) => {
 		webauthnResp.response.attestationObject = base64.toArrayBuffer(webauthnResp.response.attestationObject, true);
 		const result = await f2l.attestation(webauthnResp, config.origin, ctx.session.challenge);
 
+		let jsonWritable = new Uint8Array(result.authnrData.get("credId"));
+
 		const token = {
-			credId: result.authnrData.get("credId"),
+			//credId: result.authnrData.get("credId"),
+			credId: jsonWritable,
 			publicKey: result.authnrData.get("credentialPublicKeyPem"),
 			type: webauthnResp.type,
 			transports: webauthnResp.transports,
@@ -215,6 +236,13 @@ router.post("/response", async (ctx) => {
 		for(let authrIdx in validAuthenticators) {
 			let authr = validAuthenticators[authrIdx];
 			try {
+
+				let jsonWritable = authr.credId;
+				let jsonUnWritable = new ArrayBuffer(32);
+				let longInt8View = new Uint8Array(jsonUnWritable);
+				for (var i=0; i< longInt8View.length; i++) {
+					longInt8View[i] = jsonWritable[i];
+		  		}
 				let assertionExpectations = {
 					// Remove the following comment if allowCredentials has been added into authnOptions so the credential received will be validate against allowCredentials array.
 					allowCredentials: ctx.session.allowCredentials,
@@ -223,7 +251,8 @@ router.post("/response", async (ctx) => {
 					factor: "either",
 					publicKey: authr.publicKey,
 					prevCounter: authr.counter,
-					userHandle: authr.credId
+					userHandle: jsonUnWritable
+					//userHandle: authr.credId
 				};
 
 				let result = await f2l.assertion(webauthnResp, assertionExpectations);
