@@ -57,6 +57,7 @@ router.post("/register", async (request, response) => {
 			"status": "failed",
 			"message": `Username ${usernameClean} already exists`
 		});
+		return;
 	}
 
 	let id = randomBase64URLBuffer();
@@ -113,8 +114,21 @@ router.post("/add", async (request, response) => {
 	request.session.challenge = challengeMakeCred.challenge;
 
 	// Exclude existing credentials
+	//challengeMakeCred.excludeCredentials = database.getData("/users/" + request.session.username + "/authenticators").map((e) => { 
+	//	return { id: base64.fromArrayBuffer(e.credId, true), type: e.type };
 	challengeMakeCred.excludeCredentials = database.getData("/users/" + request.session.username + "/authenticators").map((e) => { 
-		return { id: base64.fromArrayBuffer(e.credId, true), type: e.type };
+		var jsonWritable = e.credId;
+		var jsunUnWritable = new ArrayBuffer(32);
+		var longInt8View = new Uint8Array(jsunUnWritable);
+		for (var i=0; i< longInt8View.length; i++) {
+			longInt8View[i] = jsonWritable[i];
+		}
+		//console.log(jsunUnWritable);
+		//return { id: base64url.encode(e.credId, true), type: e.type };
+		return { id: base64url.encode(jsunUnWritable, true), type: e.type };
+		
+		//return { id: base64url.encode(e.credId, true), type: e.type }; });
+
 	});
 	// Respond with credentials
 	response.json(challengeMakeCred);
@@ -151,9 +165,20 @@ router.post("/login", async (request, response) => {
 	// all of a users server (public) credentials isn't exposed to anyone
 	let allowCredentials = [];
 	for(let authr of database.getData("/users/" + request.session.username + "/authenticators")) {
+		var jsonWritable = authr.credId;
+		//console.log("authr");
+		//console.log(authr);
+		var jsunUnWritable = new ArrayBuffer(32);
+		var longInt8View = new Uint8Array(jsunUnWritable);
+		for (var i=0; i< longInt8View.length; i++) {
+			longInt8View[i] = jsonWritable[i];
+		}
+
+
 		allowCredentials.push({
 			type: authr.type,
-			id: base64.fromArrayBuffer(authr.credId, true),
+			//id: base64.fromArrayBuffer(authr.credId, true),
+			id: base64.fromArrayBuffer(jsunUnWritable, true),
 			transports: authr.transports
 		});
 	}
@@ -183,9 +208,11 @@ router.post("/response", async (request, response) => {
 		webauthnResp.rawId = base64.toArrayBuffer(webauthnResp.rawId, true);
 		webauthnResp.response.attestationObject = base64.toArrayBuffer(webauthnResp.response.attestationObject, true);
 		const result = await f2l.attestation(webauthnResp, config.origin, request.session.challenge);
+		var jsonWritable = new Uint8Array(result.authnrData.get("credId"));
         
 		const token = {
-			credId: result.authnrData.get("credId"),
+			//credId: result.authnrData.get("credId"),
+			credId: jsonWritable,
 			publicKey: result.authnrData.get("credentialPublicKeyPem"),
 			type: webauthnResp.type,
 			transports: webauthnResp.transports,
@@ -196,6 +223,12 @@ router.post("/response", async (request, response) => {
 		database.push("/users/" + request.session.username + "/authenticators[]", token);
 		database.push("/users/" + request.session.username + "/registered", true);
 		request.session.loggedIn = true;
+
+		var jsunUnWritable = new ArrayBuffer(32);
+		var longInt8View = new Uint8Array(jsunUnWritable);
+		for (var i=0; i< longInt8View.length; i++) {
+			longInt8View[i] = jsonWritable[i];
+		}
 
 		return response.json({ "status": "ok" });
 
@@ -215,6 +248,13 @@ router.post("/response", async (request, response) => {
 			let authr = validAuthenticators[authrIdx];
 			try {
 
+				var jsonWritable = authr.credId;
+				var jsunUnWritable = new ArrayBuffer(32);
+				var longInt8View = new Uint8Array(jsunUnWritable);
+				for (var i=0; i< longInt8View.length; i++) {
+					longInt8View[i] = jsonWritable[i];
+		  		}
+
 				let assertionExpectations = {
 					allowCredentials: request.session.allowCredentials,
 					challenge: request.session.challenge,
@@ -222,7 +262,8 @@ router.post("/response", async (request, response) => {
 					factor: "either",
 					publicKey: authr.publicKey,
 					prevCounter: authr.counter,
-					userHandle: authr.credId
+					//userHandle: authr.credId
+					userHandle: jsunUnWritable
 				};
 
 				let result = await f2l.assertion(webauthnResp, assertionExpectations);
