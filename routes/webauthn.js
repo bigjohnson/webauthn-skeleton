@@ -125,8 +125,8 @@ router.post("/add", async (request, response) => {
 		}
 		//console.log(jsunUnWritable);
 		//return { id: base64url.encode(e.credId, true), type: e.type };
-		return { id: base64url.encode(jsunUnWritable, true), type: e.type };
-		
+		//return { id: base64url.encode(jsunUnWritable, true), type: e.type };
+		return { id: base64.fromArrayBuffer(jsunUnWritable, true), type:e.type };
 		//return { id: base64url.encode(e.credId, true), type: e.type }; });
 
 	});
